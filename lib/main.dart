@@ -25,15 +25,13 @@ Future<void> main() async {
     // No native Google Sign-In support on this platform.
   }
 
-  // Load persisted notes (Lab 7) before the first frame renders.
-  final noteProvider = NoteProvider();
-  await noteProvider.loadFromPrefs();
-
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthService()),
-        ChangeNotifierProvider<NoteProvider>.value(value: noteProvider),
+        // Notes are (re)loaded automatically per-account via the Firebase
+        // auth-state listener inside NoteProvider — see note_provider.dart.
+        ChangeNotifierProvider(create: (_) => NoteProvider()),
       ],
       child: const MyApp(),
     ),

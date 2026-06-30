@@ -1,27 +1,46 @@
 // Provider that manages the list of Notes from Lab 7.
 // Handles: add, update, delete, and persistence via SharedPreferences.
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/note.dart';
 
-const _kNotesKey = 'notes_list';
+// Scoped per-account so each signed-in user sees only their own notes.
+String _notesKeyFor(String? uid) => 'notes_list_${uid ?? 'guest'}';
 
 class NoteProvider extends ChangeNotifier {
   final List<Note> _notes = [];
   int _nextId = 1;
+  String? _uid;
+  StreamSubscription<User?>? _authSub;
+
+  NoteProvider() {
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      loadFromPrefs(uid: user?.uid);
+    });
+  }
 
   List<Note> get notes => List.unmodifiable(_notes);
 
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
   // ── Load from SharedPreferences ───────────────────────────────────────────
 
-  Future<void> loadFromPrefs() async {
+  Future<void> loadFromPrefs({String? uid}) async {
+    _uid = uid;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_kNotesKey);
+    final raw = prefs.getString(_notesKeyFor(_uid));
+    _notes.clear();
+    _nextId = 1;
     if (raw != null) {
       final List<dynamic> jsonList = jsonDecode(raw);
-      _notes.clear();
       for (final item in jsonList) {
         _notes.add(Note.fromJson(item as Map<String, dynamic>));
       }
@@ -38,7 +57,7 @@ class NoteProvider extends ChangeNotifier {
   Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(_notes.map((n) => n.toJson()).toList());
-    await prefs.setString(_kNotesKey, encoded);
+    await prefs.setString(_notesKeyFor(_uid), encoded);
   }
 
   // ── Add a new note ────────────────────────────────────────────────────────
